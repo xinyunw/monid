@@ -13,8 +13,9 @@ so they port without new schema or engine work.
 
 - **connectors/akta** — 14 endpoints added beside the existing 6, all
   inheriting the provider's `x-api-key` auth, array→CSV `toRequest`, and
-  `credits_consumed` consolidate; all but markdown also inherit the
-  generic evidence (markdown counts its own sections):
+  `credits_consumed` consolidate; all but markdown and posts also inherit
+  the generic evidence (markdown counts its own sections, posts counts
+  `data.posts[]`):
   - Company readers: `v1/company/enrichment/concise` (flat 3),
     `v1/company/enrichment/markdown` (per section),
     `v1/company/enrichment/logo/{company}` (FREE),
@@ -29,11 +30,20 @@ so they port without new schema or engine work.
   - News: `v1/news/by-id` (0.1 + 0.01 per article, the news card).
 - **schema/common.ts** gains `zCompanyPathParams`, shared by the four
   `/{company}` readers.
-- **Bindings, not mirrors, tighten** (D25): `jobs` and `posts` require
-  `limit`, list generation requires `limit`, markdown requires `sections` —
-  each is its endpoint's estimate basis.
+- **Bindings tighten** (D25): `jobs` and `posts` require `limit`, list
+  generation requires `limit` — each is its endpoint's estimate basis.
+- **monid-services parity on inputs**: markdown and company-enrichment
+  require a non-empty `sections` (v1's fix after a prod 422 on a call
+  without it); list generation needs at least one `filters` condition and
+  does not expose the body's `sections` (it changes the per-call credits);
+  `news/by-id` takes positive-integer ids, at least one; `filters/options`
+  needs at least one `dropdowns` entry.
+- **Section rates follow v1's `SECTION_CREDITS`**: `management_profile` 1
+  and `industry` 1 on both enrichment endpoints.
 - **markdown owns its evidence**: `data` is one Markdown string, so it
   counts the response's own `sections_included`.
+- **posts owns its evidence**: Akta answers `data: {uuid, posts: [...]}`,
+  so it counts `data.posts[]` (v1 `extractResultCount`).
 - `connectors/ids.lock.json` gains exactly these 14 ids; the lock's
   pre-existing drift on other providers is left untouched.
 
@@ -42,13 +52,6 @@ so they port without new schema or engine work.
 - The 15 single-section readers (`/v1/company/enrichment/<section>/{company}`)
   and `/v1/list/filter-builder` the OpenAPI also lists: they are not in the
   hosted catalog either.
-- Re-pinning `company-enrichment`. The current credit table lists
-  `management_profile` at 1 and `industry` at 0.5 where its pins say 1.5
-  and 1. The vendor claim settles every run regardless, and a stale pin
-  surfaces as `usage.mismatch.derived`; re-pinning is a separate, recorded
-  change. Akta's own docs also disagree on `industry`: the API pricing and
-  CLI pages say 0.5, the docs.akta.pro MCP page says 1 — likely
-  plan-dependent, so the account's plan decides the pin.
 - The news `primary_company` filter the docs now mention.
 
 ## Impact

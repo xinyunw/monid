@@ -47,9 +47,19 @@ component per section id; logo, filters/list, and filters/options `FREE`.
 
 ### Requirement: Estimates read a caller-stated basis
 `jobs`, `posts`, and list generation SHALL require `limit` at the binding and
-estimate it as their metered quantity; markdown SHALL require `sections` and
-estimate one count per requested section; news/by-id SHALL estimate one
-article per requested id. Input mirrors stay vendor-faithful.
+estimate it as their metered quantity; markdown SHALL require a non-empty
+`sections` and estimate one count per requested section; news/by-id SHALL
+estimate one article per requested id.
+
+#### Scenario: Inputs v1 rejects are rejected before the wire
+- **WHEN** markdown or company-enrichment gets no or empty `sections`, list
+  generation gets empty `filters` or a `sections` field, news/by-id gets no
+  ids or a non-integer id, or filters/options gets no `dropdowns`
+- **THEN** the run is rejected INVALID_INPUT
+
+#### Scenario: Posts counts the posts it delivered
+- **WHEN** a posts response carries `data: {uuid, posts: [two posts]}`
+- **THEN** evidence is `{RESULT: 2}`
 
 #### Scenario: Markdown counts what it rendered
 - **WHEN** a markdown response carries

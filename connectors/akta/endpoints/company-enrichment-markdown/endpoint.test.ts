@@ -1,6 +1,8 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { fromFileUrl } from "@std/path";
+import type { Json } from "@shared/core";
 import {
+    assertInputAccepted,
     estimateEndpoint,
     loadFixture,
     runEndpoint,
@@ -46,4 +48,32 @@ Deno.test("akta#v1/company/enrichment/markdown estimate: matches the settled car
         credits: { default: 1 },
         evidence: { trust_signal: 1, location: 1 },
     });
+});
+
+Deno.test("akta#v1/company/enrichment/markdown schema gate: sections is required and non-empty (v1 parity)", async () => {
+    const unit = await testSealedUnit(ID);
+    for (
+        const [why, queryParams] of [
+            ["no sections", { company: "canva.com" }],
+            ["empty sections", { company: "canva.com", sections: [] }],
+        ] as [string, Record<string, Json>][]
+    ) {
+        await assertRejects(
+            () => runEndpoint({ unit, input: { queryParams }, mode: "replay" }),
+            Error,
+            "INVALID_INPUT",
+            why,
+        );
+    }
+    for (
+        const queryParams of [
+            { company: "canva.com", sections: ["firmographic"] },
+        ] as Record<string, Json>[]
+    ) {
+        await assertInputAccepted({
+            unit,
+            input: { queryParams },
+            mode: "replay",
+        });
+    }
 });

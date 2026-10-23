@@ -25,8 +25,7 @@ export default defineEndpoint({
         schema: { queryParams: zPostsQueryParams.required({ limit: true }) },
     },
     usage: {
-        /** "1 credit for 10 records" (agent-docs pricing, "Social Posts").
-         *  Settle is inherited from the provider, as on jobs. */
+        /** "1 credit for 10 records" (agent-docs pricing, "Social Posts"). */
         model: {
             kind: UsageModelKind.PER_UNIT,
             unit: Unit.RESULT,
@@ -36,6 +35,15 @@ export default defineEndpoint({
         },
         estimate: ({ data }) => ({
             counts: { "RESULT": data.input.queryParams.limit },
+        }),
+        /** Akta answers `data: {uuid, posts: [...]}`, not a top-level
+         *  array, so the provider's generic `$.data` count does not apply:
+         *  count the posts (monid-services `extractResultCount`). */
+        evidence: ({ data, utils }) => ({
+            counts: {
+                "RESULT": utils.json.optionalLen(data.output, "$.data.posts") ??
+                    0,
+            },
         }),
     },
 });

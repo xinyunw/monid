@@ -1,6 +1,8 @@
-import { assertAlmostEquals, assertEquals } from "@std/assert";
+import { assertAlmostEquals, assertEquals, assertRejects } from "@std/assert";
 import { fromFileUrl } from "@std/path";
+import type { Json } from "@shared/core";
 import {
+    assertInputAccepted,
     estimateEndpoint,
     loadFixture,
     runEndpoint,
@@ -43,4 +45,32 @@ Deno.test("akta#v1/list/generate/companies estimate: the caller-stated quantity 
     assertEquals(usage.evidence, expected.evidence);
     // the fold may carry float dust the literal does not
     assertAlmostEquals(usage.credits.default ?? 0, expected.credits.default);
+});
+
+Deno.test("akta#v1/list/generate/companies schema gate: filters needs a condition; sections is not exposed (v1 parity)", async () => {
+    const unit = await testSealedUnit(ID);
+    for (
+        const [why, body] of [
+            ["empty filters", { filters: {}, limit: 10 }],
+            ["sections", {
+                filters: { "industry.industry": ["5112"] },
+                sections: ["firmographic"],
+                limit: 10,
+            }],
+        ] as [string, Record<string, Json>][]
+    ) {
+        await assertRejects(
+            () => runEndpoint({ unit, input: { body }, mode: "replay" }),
+            Error,
+            "INVALID_INPUT",
+            why,
+        );
+    }
+    for (
+        const body of [
+            { filters: { "industry.industry": ["5112"] }, limit: 10 },
+        ] as Record<string, Json>[]
+    ) {
+        await assertInputAccepted({ unit, input: { body }, mode: "replay" });
+    }
 });

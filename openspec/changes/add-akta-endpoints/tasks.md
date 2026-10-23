@@ -18,6 +18,16 @@
 - [x] 2.4 News: news/by-id
 - [x] 2.5 `zCompanyPathParams` in `schema/common.ts`
 
+## 2b. monid-services parity (review, 2026-10-22)
+
+- [x] 2b.1 posts counts `data.posts[]`; fixture in Akta's real shape
+- [x] 2b.2 list generation drops `sections`, requires a `filters` condition
+- [x] 2b.3 section rates per v1 `SECTION_CREDITS` (`management_profile` 1,
+      `industry` 1)
+- [x] 2b.4 markdown and company-enrichment require non-empty `sections`
+- [x] 2b.5 `news_ids` positive integers (min 1); `dropdowns` min 1
+- [x] 2b.6 schema gates with passing near-twins for each
+
 ## 3. Identity and tests
 
 - [x] 3.1 Add the 14 ids to `connectors/ids.lock.json` (other providers'
@@ -31,5 +41,3 @@
 
 - [ ] 4.1 Record real fixtures with an Akta key (`deno task record`) and
       confirm each trailing-slash path answers 200, not 307
-- [ ] 4.2 Re-pin `company-enrichment` to the current credit table
-      (`management_profile` 1, `industry` 0.5) after a live check

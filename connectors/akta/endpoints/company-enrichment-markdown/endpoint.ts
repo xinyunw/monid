@@ -29,11 +29,10 @@ export default defineEndpoint({
     },
     usage: {
         /** COMPOSITE, one component per section, ids = the vendor's own
-         *  section names. Rates are the CURRENT agent-docs "Company Data"
-         *  table (checked 2026-10-21) — note it lists management_profile
-         *  at 1 and industry at 0.5, where company-enrichment's pins say
-         *  1.5 and 1. The provider consolidate's `credits_consumed` claim
-         *  wins either way; a stale pin shows up as usage.mismatch.derived. */
+         *  section names. Rates are monid-services' `SECTION_CREDITS`,
+         *  shared with company-enrichment. The provider consolidate's
+         *  `credits_consumed` claim settles the run either way; a
+         *  differing pin shows up as usage.mismatch.derived. */
         model: {
             kind: UsageModelKind.COMPOSITE,
             components: {
@@ -100,7 +99,7 @@ export default defineEndpoint({
                 industry: {
                     kind: UsageModelKind.PER_UNIT,
                     unit: Unit.RESULT,
-                    consumes: { credit: "default", amount: 0.5 },
+                    consumes: { credit: "default", amount: 1 },
                 },
                 technology: {
                     kind: UsageModelKind.PER_UNIT,

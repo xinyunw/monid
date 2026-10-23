@@ -25,6 +25,10 @@ Deno.test("akta#v1/company/posts happy (synthetic): two delivered posts start on
     // the vendor meter is absorbed out of the payload
     const output = result.output as Record<string, unknown>;
     assertEquals("credits_consumed" in output, false);
+    // Akta's real shape: the posts sit under data.posts, beside the uuid
+    const data = output.data as { uuid: string; posts: unknown[] };
+    assertEquals(data.uuid, "b9f3c2de-0000-4000-8000-00000000c0a1");
+    assertEquals(data.posts.length, 2);
 });
 
 Deno.test("akta#v1/company/posts estimate: matches the settled card", async () => {

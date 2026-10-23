@@ -24,10 +24,11 @@ Deno.test("akta: usage fn provenance — OWN evidence vs provider vs synthesized
         "akta#v1/company/employee-reviews",
         "akta#v1/company/enrichment",
         "akta#v1/company/enrichment/markdown",
+        "akta#v1/company/posts",
         "akta#v1/company/product-reviews",
     ];
     // D27 subclassing: evidence resolves endpoint ?? provider, so every
-    // other doc — metered (news, news/by-id, jobs, posts, list generation),
+    // other doc — metered (news, news/by-id, jobs, list generation),
     // flat, or FREE — inherits the PROVIDER's generic fn (one key; on a
     // FREE or flat model it lawfully returns {counts: {}}). Synthesis
     // never fires for evidence here because the provider declares one.
@@ -79,7 +80,7 @@ Deno.test("akta: usage fn provenance — OWN evidence vs provider vs synthesized
                 bundle.endpoints[id].usage.evidence.$fn.key
             ),
         ).size,
-        4,
+        5,
     );
     for (const id of ids) {
         const doc = bundle.endpoints[id];

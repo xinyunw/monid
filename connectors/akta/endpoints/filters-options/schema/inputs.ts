@@ -9,8 +9,8 @@ export const zFilterOptionsBody = z.object({
                     "endpoint (e.g. 'firmographic.company_type').",
             ),
         }),
-    ).describe(
-        "Filter fields to look up. Each object has a single " +
-            "`dropdown_type` key.",
+    ).min(1).describe(
+        "Filter fields to look up, at least one. Each object has a " +
+            "single `dropdown_type` key.",
     ),
-});
+}).strict();

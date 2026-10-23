@@ -1,6 +1,8 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { fromFileUrl } from "@std/path";
+import type { Json } from "@shared/core";
 import {
+    assertInputAccepted,
     estimateEndpoint,
     loadFixture,
     runEndpoint,
@@ -38,4 +40,27 @@ Deno.test("akta#v1/filters/options estimate: matches the settled card", async ()
         },
     );
     assertEquals(usage, { credits: {}, evidence: {} });
+});
+
+Deno.test("akta#v1/filters/options schema gate: dropdowns needs at least one entry (v1 parity)", async () => {
+    const unit = await testSealedUnit(ID);
+    for (
+        const [why, body] of [
+            ["no dropdowns", { dropdowns: [] }],
+        ] as [string, Record<string, Json>][]
+    ) {
+        await assertRejects(
+            () => runEndpoint({ unit, input: { body }, mode: "replay" }),
+            Error,
+            "INVALID_INPUT",
+            why,
+        );
+    }
+    for (
+        const body of [
+            { dropdowns: [{ dropdown_type: "firmographic.company_type" }] },
+        ] as Record<string, Json>[]
+    ) {
+        await assertInputAccepted({ unit, input: { body }, mode: "replay" });
+    }
 });

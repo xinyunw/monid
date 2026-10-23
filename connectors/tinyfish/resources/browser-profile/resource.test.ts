@@ -29,9 +29,14 @@ Deno.test("tinyfish/browser-profile: verify, the sanitized domains view, then re
         string,
         Json
     >;
-    assertEquals(view.name, "Salesforce Production");
-    assertEquals("fingerprint_seed" in view, false);
-    assertEquals("id" in view, false);
+    // the exact key set, camelCase as provision spells it: never the raw
+    // vendor id or fingerprint_seed
+    assertEquals(view, {
+        name: "Salesforce Production",
+        proxyCountryCode: "US",
+        domains: [{ domain: "app.example.com", cookie_count: 12 }],
+        createdAt: "2026-10-21T01:00:00Z",
+    });
     assertEquals(await resource.release(PROFILE), { released: true });
 });
 

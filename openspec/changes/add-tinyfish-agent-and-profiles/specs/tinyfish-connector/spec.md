@@ -8,7 +8,7 @@
 `screenshots=none&html=none`, and price a `PER_UNIT` `CREDIT` line at 0.016
 US dollars per step. Its evidence SHALL be the terminal record's
 `num_of_steps` (0 when absent) whatever the terminal status; its estimate
-SHALL be `max_steps + 2`, with `max_steps` defaulting to 150 at the binding.
+SHALL be `(max_steps ?? 150) + 2`.
 A poll answering 429 or 5xx SHALL throw (retriable); any other non-2xx SHALL
 complete as data.
 
@@ -21,6 +21,16 @@ complete as data.
   `steps`, `profile_id`, and `browser_config`
 - **THEN** the output holds only `run_id`, `status`, `result`, `error`,
   `num_of_steps`, `started_at`, and `finished_at`
+
+### Requirement: agent_config carries only what the caller set
+The start request SHALL carry `agent_config` with only the `max_steps` and
+`max_duration_seconds` the caller set, and SHALL omit it when neither is
+set: `max_steps` is a vendor beta that a non-beta key is refused for.
+
+#### Scenario: An uncapped run sends no agent_config
+- **WHEN** a caller sends only `url` and `goal`
+- **THEN** the start request has no `agent_config` and the estimate holds
+  152 steps
 
 ### Requirement: Stopping the agent settles executed steps
 The stop fn SHALL request `POST /v1/runs/{id}/cancel`, then drain up to three

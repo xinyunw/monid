@@ -26,13 +26,14 @@ export const zAutomationRunBody = z.object({
             "to take. Example: 'Extract every product name and price on " +
             "page 1, return JSON'.",
     ),
-    // describe BEFORE optional: the binding unwraps this field to attach
-    // its default, and .unwrap() drops a describe placed outside it
+    // Optional with no binding default: TinyFish gates the field behind a
+    // beta, so it is sent only when the caller sets it. NOT an exact
+    // vendor-enforced maximum: a cap of 1 billed 2 steps live (2026-09-21).
     max_steps: z.number().int().min(1).max(500).describe(
         "Step limit — the primary cost control: the run is billed per AI " +
             "step, so capping steps bounds cost (the agent may take about " +
             "one final wrap-up step past the cap). The run stops at the cap " +
-            "and returns partial results. Default 150.",
+            "and returns partial results. Defaults to 150.",
     ).optional(),
     max_duration_seconds: z.number().int().min(5).max(1800).optional()
         .describe(

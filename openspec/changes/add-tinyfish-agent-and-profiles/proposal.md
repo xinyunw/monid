@@ -19,15 +19,19 @@ logins. monid-services launched them on 2026-09-30
   state, free to hold ($0 fixed line, monthly clock). `verify` =
   `GET /v1/profiles/{id}` (404 ⇒ inactive), `release` =
   `DELETE /v1/profiles/{id}` (2xx/404/410 conclude; 409 and anything else
-  throw), `views.domains` = the live saved-domain summary, allowlisted.
+  throw), `views.domains` = the live saved-domain summary, allowlisted and
+  spelled camelCase like `provision`'s output (`name`, `proxyCountryCode`,
+  `domains`, `createdAt`).
 - **endpoints (6)**:
   - `automation/run` — async (`POST /v1/automation/run-async`, poll
     `GET /v1/runs/{id}`, stop = cancel + drain). `PER_UNIT` at $0.016
     per AI step, TinyFish's public dollar price (tinyfish.ai/pricing); steps
     count under `Unit.CREDIT` because the contract has no STEP unit. Evidence is
     the terminal `num_of_steps` for COMPLETED, FAILED, and CANCELLED alike;
-    the estimate is `max_steps + 2` (the measured wrap-up overshoot), with
-    `max_steps` defaulting to the vendor's 150 at the binding. Output is
+    the estimate is `(max_steps ?? 150) + 2` (the vendor's default cap plus
+    the measured wrap-up overshoot). `agent_config` carries only the fields
+    the caller set, and is left out when neither is: `max_steps` is a
+    vendor beta that answers 403 to a non-beta key. Output is
     allowlisted (no streaming/video URLs, steps, or profile fields).
   - `browser-profiles/provision` — `POST /v1/profiles`; PROVISIONS the
     resource; drops `fingerprint_seed`; never sends `set_as_default`.

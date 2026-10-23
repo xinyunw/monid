@@ -50,20 +50,19 @@ export default defineEndpoint({
             "Password-manager vault access and account-default profiles " +
             "are unavailable; saved logins go through browser profiles you " +
             "own ('profileId').",
+            "max_steps depends on a vendor beta entitlement. Should it ever " +
+            "lapse upstream, runs that set max_steps surface the vendor's " +
+            "403 FORBIDDEN in providerResponse; runs without the field are " +
+            "unaffected.",
         ],
     },
     endpoint: "/automation/run",
     request: { method: "POST", path: "/v1/automation/run-async" },
     input: {
-        // `max_steps` defaults to the vendor's own documented cap (150) at
-        // the binding (design D25): it is the estimate's basis, and
-        // materializing it sends exactly what the vendor would assume.
-        schema: {
-            body: zAutomationRunBody.extend({
-                max_steps: zAutomationRunBody.shape.max_steps.unwrap()
-                    .default(150),
-            }),
-        },
+        // `max_steps` stays optional and is sent ONLY when the caller set
+        // it: TinyFish gates the field behind a beta, and a non-beta key
+        // that sends it gets 403 FORBIDDEN (monid-services parity).
+        schema: { body: zAutomationRunBody },
     },
     // A queued run plus the 1800 s soft budget with its ~2x overshoot.
     timeouts: { requestMs: 30_000, pollMs: 5_000, runMs: 3_900_000 },
@@ -76,9 +75,10 @@ export default defineEndpoint({
             consumes: { credit: "default", amount: 0.016 },
         },
         /** The step cap plus 2: monid-services measured `max_steps: 3`
-         *  finishing at 4 steps (the wrap-up step past the cap bills). */
+         *  finishing at 4 steps (the wrap-up step past the cap bills). An
+         *  absent cap holds TinyFish's own default, 150. */
         estimate: ({ data }) => ({
-            counts: { "CREDIT": data.input.body!.max_steps + 2 },
+            counts: { "CREDIT": (data.input.body!.max_steps ?? 150) + 2 },
         }),
         /** The terminal `num_of_steps` (absent or null ⇒ nothing ran). */
         evidence: ({ data, utils }) => ({
@@ -133,14 +133,24 @@ export default defineEndpoint({
                 body: {
                     url: body.url,
                     goal: body.goal,
-                    agent_config: {
-                        max_steps: body.max_steps,
-                        ...(body.max_duration_seconds !== undefined
-                            ? {
-                                max_duration_seconds: body.max_duration_seconds,
-                            }
-                            : {}),
-                    },
+                    // only the fields the caller set; none ⇒ no
+                    // agent_config at all (max_steps is a vendor beta)
+                    ...(body.max_steps !== undefined ||
+                            body.max_duration_seconds !== undefined
+                        ? {
+                            agent_config: {
+                                ...(body.max_steps !== undefined
+                                    ? { max_steps: body.max_steps }
+                                    : {}),
+                                ...(body.max_duration_seconds !== undefined
+                                    ? {
+                                        max_duration_seconds:
+                                            body.max_duration_seconds,
+                                    }
+                                    : {}),
+                            },
+                        }
+                        : {}),
                     ...(body.browser_profile !== undefined
                         ? { browser_profile: body.browser_profile }
                         : {}),

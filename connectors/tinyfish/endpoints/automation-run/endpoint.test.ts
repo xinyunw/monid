@@ -14,6 +14,7 @@ import {
     runEndpoint,
     testSealedUnit,
 } from "@shared/testing";
+import { directTransport, Engine } from "@monid/connector-engine";
 
 /**
  * tinyfish#automation/run. Fixtures are SYNTHETIC, shaped from the
@@ -146,6 +147,51 @@ Deno.test("tinyfish#automation/run: STOP cancels, drains, and bills the executed
     assert(stopped.kind === RunKind.COMPLETED, "stop settles");
     assertEquals(stopped.usage.evidence, { CREDIT: 2 });
     assertAlmostEquals(stopped.usage.credits.default ?? 0, 0.032);
+});
+
+/** What `start` sends upstream for `body` (TinyFish answers a run id). */
+async function sentBody(body: Record<string, Json>) {
+    const sent: Record<string, Json>[] = [];
+    const engine = new Engine({
+        // no profileId in these bodies, so the reader is never consulted
+        resources: { owned: () => Promise.resolve([]) },
+        transport: directTransport({
+            params: () => Promise.resolve({ apiKey: "test-key" }),
+            fetch: (_input, init) => {
+                const req = (init ?? {}) as { body?: unknown };
+                sent.push(JSON.parse(String(req.body)));
+                return Promise.resolve(
+                    new Response(JSON.stringify({ run_id: "run_1" }), {
+                        status: 200,
+                        headers: { "content-type": "application/json" },
+                    }),
+                );
+            },
+        }),
+    });
+    const loaded = await engine.load(await testSealedUnit(AGENT));
+    const started = await loaded.start({ body });
+    assertEquals(started.kind, RunKind.RUNNING);
+    assertEquals(sent.length, 1);
+    return sent[0];
+}
+
+Deno.test("tinyfish#automation/run: agent_config carries only what the caller set — max_steps is a vendor beta", async () => {
+    // no cap and no budget: no agent_config at all, so a non-beta key is
+    // not refused with 403 (the hold still assumes the 150 default — the
+    // estimate test above)
+    const bare = { url: "https://scrapeme.live/shop", goal: "x" };
+    assertEquals(await sentBody(bare), bare);
+    // a budget alone sends no max_steps
+    assertEquals(
+        (await sentBody({ ...bare, max_duration_seconds: 60 })).agent_config,
+        { max_duration_seconds: 60 },
+    );
+    // a cap the caller set is sent
+    assertEquals(
+        (await sentBody({ ...bare, max_steps: 10 })).agent_config,
+        { max_steps: 10 },
+    );
 });
 
 Deno.test("tinyfish#automation/run: STOP before the first step settles nothing", async () => {

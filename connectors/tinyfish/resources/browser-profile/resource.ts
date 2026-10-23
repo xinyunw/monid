@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineResource } from "@shared/core";
+import { defineResource, type Json } from "@shared/core";
 import { zProfileId, zProxyCountry } from "../../schema/profiles.ts";
 
 /**
@@ -93,12 +93,24 @@ export default defineResource({
                         "tinyfish profile read failed with HTTP " + res.status,
                     );
                 }
-                return $.pick(res.body, [
-                    "$.name",
+                // the same camelCase spelling provision answers with
+                // (monid-services `sanitizeProfileDetail`); `domains` is
+                // vendor-owned display data, relayed as is
+                const name = $.optionalStr(res.body, "$.name");
+                const country = $.optionalStr(
+                    res.body,
                     "$.proxy_country_code",
-                    "$.domains",
-                    "$.created_at",
-                ]);
+                );
+                const domains = (res.body as Record<string, Json>)?.domains;
+                const createdAt = $.optionalStr(res.body, "$.created_at");
+                return {
+                    ...(name !== undefined ? { name } : {}),
+                    ...(country !== undefined
+                        ? { proxyCountryCode: country }
+                        : {}),
+                    ...(domains !== undefined ? { domains } : {}),
+                    ...(createdAt !== undefined ? { createdAt } : {}),
+                };
             },
         },
     },

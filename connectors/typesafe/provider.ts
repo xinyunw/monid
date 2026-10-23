@@ -27,12 +27,12 @@ export default defineProvider({
             "a single request.",
         homepageUrl: "https://typesafe.ai",
         docsUrl: "https://docs.typesafe.ai",
-        categories: ["agents"],
+        categories: ["decision-models"],
     },
     auth: { inject: presets.auth.bearer() },
     request: { baseUrl: "https://api.typesafe.ai" },
-    // monid-services parity: 30 s request budget (endpointExecution
-    // config.yml) — the model answers well under a second.
-    timeouts: { requestMs: 30_000, runMs: 30_000 },
+    // monid-services parity (services/api config.yml): 30 s request,
+    // 60 s run — the model answers well under a second.
+    timeouts: { requestMs: 30_000, runMs: 60_000 },
     usage: { credits: { default: { label: "US dollars" } } },
 });

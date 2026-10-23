@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { fromFileUrl } from "@std/path";
 import type { Json } from "@shared/core";
 import {
@@ -11,143 +11,217 @@ import {
 } from "@shared/testing";
 
 /**
- * typesafe#systemone through the compiled doc. Fixtures are SYNTHETIC,
- * shaped from docs.typesafe.ai/api.
+ * typesafe#systemone through the compiled doc. The happy fixture is the
+ * monid-services live drill (2026-09-20) verbatim; the 422 is synthetic.
  *
  * Rate under test: $42 per billion input tokens, output tokens free
  * (https://docs.typesafe.ai/models, checked 2026-10-22).
  */
 
-const FIXTURES = fromFileUrl(new URL("../../fixtures/", import.meta.url));
+const FIXTURES = fromFileUrl(new URL("./fixtures/", import.meta.url));
 const fixture = (name: string) => loadFixture(`${FIXTURES}${name}.json`);
 const ID = "typesafe#systemone";
-const QUESTIONS = {
-    refund: {
-        type: "noul",
-        instructions: "Is the customer asking for a refund?",
-    },
-    topic: {
-        type: "choice",
-        criteria: { billing: null, shipping: null, other: null },
-    },
-};
-const TICKET = {
-    body: {
-        state: "Customer: my card was charged twice for order 1234.",
-        questions: QUESTIONS,
-    },
-};
 
-Deno.test("typesafe#systemone happy: bills the vendor's input tokens; the answer relays whole", async () => {
-    const happy = await fixture("synthetic-systemone-happy");
+Deno.test("typesafe#systemone happy: the live drill bills its 407 input tokens; the answer relays whole", async () => {
+    const drill = await fixture("live-systemone-drill");
     const result = await runEndpoint({
         unit: await testSealedUnit(ID),
-        input: TICKET,
+        input: { body: drill.calls[0].req.body as Json },
         mode: "replay",
-        fixture: happy,
+        fixture: drill,
     });
     assertEquals(result.httpStatus, 200);
+    assertEquals(result.isProviderError, false);
     assertEquals(result.usage, {
-        credits: { default: 412 * 0.000000042 },
-        evidence: { TOKEN: 412 },
+        credits: { default: 407 * 0.000000042 },
+        evidence: { TOKEN: 407 },
     });
-    // no billing field is lifted out: the vendor's token counts stay, as
-    // the caller's own receipt, and the two answers arrive whole
-    assertEquals(result.output, happy.calls[0].res.body);
+    // the vendor's token counts stay in the output, as the caller's own
+    // receipt, and the three answers arrive whole
+    assertEquals(result.output, drill.calls[0].res.body);
 });
 
-Deno.test("typesafe#systemone provider error: a 422 is data, zero usage", async () => {
+Deno.test("typesafe#systemone provider error: an unknown model is TypeSafe's 422, zero usage", async () => {
+    const unknown = await fixture("synthetic-systemone-unknown-model");
     const result = await runEndpoint({
         unit: await testSealedUnit(ID),
-        input: { body: { state: "x", questions: {} } },
+        input: { body: unknown.calls[0].req.body as Json },
         mode: "replay",
-        fixture: await fixture("synthetic-systemone-invalid"),
+        fixture: unknown,
     });
     assertEquals(result.httpStatus, 422);
     assertEquals(result.isProviderError, true);
     assertEquals(result.usage, { credits: {}, evidence: {} });
 });
 
-Deno.test("typesafe#systemone schema gate: box questions, assets, and 11 score levels are rejected", async () => {
+Deno.test("typesafe#systemone schema gate: v1's rejections, each beside a passing near-twin", async () => {
     const unit = await testSealedUnit(ID);
     const levels = (n: number) => Array.from({ length: n }, (_, i) => `L${i}`);
-    for (
-        const body of [
-            { state: "x", questions: { where: { type: "box" } } },
-            {
-                state: "x",
-                questions: QUESTIONS,
-                assets: { logo: { type: "image", data_base64: "AAAA" } },
+    const options = (n: number) =>
+        Object.fromEntries(
+            Array.from({ length: n }, (_, i) => [`o${i}`, null]),
+        );
+    const noul = { type: "noul", instructions: "?" };
+    const rejected: [string, Record<string, Json>][] = [
+        ["unknown question type", {
+            state: "x",
+            questions: { q: { type: "essay", instructions: "write" } },
+        }],
+        ["box question (not exposed)", {
+            state: "x",
+            questions: { where: { type: "box", instructions: "find" } },
+        }],
+        ["choice without criteria", {
+            state: "x",
+            questions: { q: { type: "choice", instructions: "pick" } },
+        }],
+        ["choice with 0 options", {
+            state: "x",
+            questions: {
+                q: { type: "choice", instructions: "pick", criteria: {} },
             },
-            {
-                state: "x",
-                questions: { rate: { type: "score", criteria: levels(11) } },
+        }],
+        ["choice with 256 options", {
+            state: "x",
+            questions: {
+                q: {
+                    type: "choice",
+                    instructions: "pick",
+                    criteria: options(256),
+                },
             },
-        ] as Record<string, Json>[]
-    ) {
+        }],
+        ["score with 1 level", {
+            state: "x",
+            questions: {
+                q: { type: "score", instructions: "rate", criteria: levels(1) },
+            },
+        }],
+        ["score with 11 levels", {
+            state: "x",
+            questions: {
+                q: {
+                    type: "score",
+                    instructions: "rate",
+                    criteria: levels(11),
+                },
+            },
+        }],
+        ["missing instructions", {
+            state: "x",
+            questions: { q: { type: "noul" } },
+        }],
+        ["null noul criteria", {
+            state: "x",
+            questions: { q: { ...noul, criteria: null } },
+        }],
+        ["empty questions", { state: "x", questions: {} }],
+        ["unknown top-level field", {
+            state: "x",
+            questions: { q: noul },
+            temperature: 1,
+        }],
+        ["assets (not exposed)", {
+            state: "x",
+            questions: { q: noul },
+            assets: { logo: { type: "image", data_base64: "AAAA" } },
+        }],
+        ["missing state", { questions: { q: noul } }],
+    ];
+    for (const [why, body] of rejected) {
         await assertRejects(
             () => runEndpoint({ unit, input: { body }, mode: "replay" }),
             Error,
             "INVALID_INPUT",
+            why,
         );
     }
-    // near-twins: ten score levels, and the vendor's nullable fields
-    for (
-        const body of [
-            {
-                state: "x",
-                questions: { rate: { type: "score", criteria: levels(10) } },
+    const accepted: Record<string, Json>[] = [
+        // the edges just inside each bound
+        {
+            state: "x",
+            questions: {
+                q: { type: "score", instructions: "rate", criteria: levels(2) },
             },
-            {
-                state: "x",
-                questions: {
-                    yes: { type: "noul", instructions: null, criteria: null },
+        },
+        {
+            state: "x",
+            questions: {
+                q: {
+                    type: "score",
+                    instructions: "rate",
+                    criteria: levels(10),
                 },
             },
-            {
-                state: "x",
-                questions: {
-                    yes: {
-                        type: "noul",
-                        criteria: { true: "refund", false: null },
-                    },
+        },
+        {
+            state: "x",
+            questions: {
+                q: {
+                    type: "choice",
+                    instructions: "pick",
+                    criteria: options(1),
                 },
             },
-        ] as Record<string, Json>[]
-    ) {
+        },
+        {
+            state: "x",
+            questions: {
+                q: {
+                    type: "choice",
+                    instructions: "pick",
+                    criteria: options(255),
+                },
+            },
+        },
+        // one question; noul criteria present but partial; structured
+        // state and instructions
+        { state: "x", questions: { q: noul } },
+        {
+            state: { ticket: { subject: "Duplicate charge" } },
+            questions: {
+                q: {
+                    type: "noul",
+                    instructions: { question: "Is a refund supported?" },
+                    criteria: { true: "refund" },
+                },
+            },
+        },
+    ];
+    for (const body of accepted) {
         await assertInputAccepted({ unit, input: { body }, mode: "replay" });
     }
 });
 
-Deno.test("typesafe#systemone estimate: the body's UTF-8 byte count", async () => {
+Deno.test("typesafe#systemone estimate: the body's UTF-8 byte count, a ceiling on the drill's tokens", async () => {
     const unit = await testSealedUnit(ID);
-    // the binding materializes model "jev-latest" before the estimate
-    const ascii = await estimateEndpoint(unit, TICKET);
-    const bytes = new TextEncoder().encode(
-        JSON.stringify({ ...TICKET.body, model: "jev-latest" }),
-    ).length;
-    assertEquals(ascii.evidence, { TOKEN: bytes });
-    // non-ASCII counts in bytes, not characters: "退款" is 6 UTF-8 bytes
-    const cjk = await estimateEndpoint(unit, {
-        body: { state: "退款", questions: QUESTIONS },
+    const drill = await fixture("live-systemone-drill");
+    // the drill body is 526 bytes; TypeSafe billed it 407 tokens
+    const held = await estimateEndpoint(unit, {
+        body: drill.calls[0].req.body as Json,
     });
-    const cjkBytes = new TextEncoder().encode(
-        JSON.stringify({
-            state: "退款",
-            questions: QUESTIONS,
-            model: "jev-latest",
-        }),
+    assertEquals(held.evidence, { TOKEN: 526 });
+    // non-ASCII counts in bytes, not characters: "退款" is 6 UTF-8 bytes;
+    // the binding materializes model "jev-latest" before the estimate
+    const questions = { q: { type: "noul", instructions: "?" } };
+    const cjk = await estimateEndpoint(unit, {
+        body: { state: "退款", questions },
+    });
+    const bytes = new TextEncoder().encode(
+        JSON.stringify({ state: "退款", questions, model: "jev-latest" }),
     ).length;
-    assertEquals(cjk.evidence, { TOKEN: cjkBytes });
+    assertEquals(cjk.evidence, { TOKEN: bytes });
 });
 
 Deno.test({
     name: "typesafe#systemone live (gated on TYPESAFE_API_KEY)",
     ignore: liveSkip("typesafe"),
     fn: async () => {
+        const drill = await fixture("live-systemone-drill");
+        const body = drill.calls[0].req.body as Record<string, Json>;
         const result = await runEndpoint({
             unit: await testSealedUnit(ID),
-            input: TICKET,
+            input: { body },
             mode: "live",
         });
         assertEquals(
@@ -157,13 +231,19 @@ Deno.test({
         );
         const output = result.output as Record<string, Json>;
         assertEquals(typeof output.model, "string");
+        // one answer per question, under the caller's ids, of the asked type
+        const questions = body.questions as Record<
+            string,
+            Record<string, Json>
+        >;
         const answers = output.answers as Record<string, Record<string, Json>>;
-        assertEquals(answers.refund.type, "noul");
-        assertEquals(typeof answers.refund.noul, "number");
-        assertEquals(answers.topic.type, "choice");
-        assert(["billing", "shipping", "other"].includes(
-            answers.topic.choice as string,
-        ));
+        assertEquals(
+            Object.keys(answers).sort(),
+            Object.keys(questions).sort(),
+        );
+        for (const id of Object.keys(questions)) {
+            assertEquals(answers[id].type, questions[id].type, id);
+        }
         const usage = output.usage as Record<string, Json>;
         assertEquals(typeof usage.input_tokens, "number");
         assertEquals(Object.keys(result.usage.evidence), ["TOKEN"]);

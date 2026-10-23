@@ -14,16 +14,21 @@ export default defineEndpoint({
             "one sub-second call: noul answers a yes/no with a calibrated " +
             "probability, choice classifies into your own options with a " +
             "full probability distribution and confidence, score rates on " +
-            "your own rubric with a probability-weighted value. Every " +
-            "question is evaluated in parallel against the same state, so " +
-            "batching many judgments into one call barely changes latency " +
-            "or cost. Suited for triage and intent routing, guardrails, " +
-            "re-ranking, entity matching and dedup, claim verification, " +
-            "and confidence-gated escalation.",
+            "your own 2-10 level rubric with a probability-weighted value. " +
+            "Mix question types freely; every question is evaluated in " +
+            "parallel against the same state, so batching many judgments " +
+            "into one call barely changes latency or cost. Suited for " +
+            "triage and intent routing, LLM guardrails, re-ranking " +
+            "candidates, entity matching and dedup, citation and claim " +
+            "verification, and confidence-gated escalation to humans or " +
+            "reasoning models.",
         docsUrl: "https://docs.typesafe.ai/api",
-        categories: ["agents"],
+        categories: ["decision-models"],
         notes: [
-            "Billed per INPUT token only; output tokens are free.",
+            "Billed per INPUT token only (usage.input_tokens is the " +
+            "billing receipt); output tokens are free.",
+            "Batching many questions into one call is the cheap path — " +
+            "the state is ingested once per call.",
         ],
     },
     endpoint: "/systemone",
@@ -49,18 +54,26 @@ export default defineEndpoint({
             label: "input tokens",
             consumes: { credit: "default", amount: 0.000000042 },
         },
-        /** An ESTIMATE of input tokens: the UTF-8 byte length of the
-         *  serialized body. It is not a guaranteed ceiling — TypeSafe does
-         *  not document how it counts input tokens, which may include
-         *  tokens beyond the caller's body. `encodeURIComponent` counts the
-         *  bytes: every %XX is one byte, every other character one ASCII
-         *  byte. */
-        estimate: ({ data }) => ({
-            counts: {
-                "TOKEN": encodeURIComponent(JSON.stringify(data.input.body))
-                    .replace(/%[0-9A-F]{2}/g, "x").length,
-            },
-        }),
+        /** Input tokens bounded by the UTF-8 BYTE length of the serialized
+         *  body — v1's basis (`systemoneHoldTokens`): byte-level BPE
+         *  consumes at least one byte per token, so the byte count is a
+         *  ceiling the settle trues down from. Byte width per code point
+         *  is plain arithmetic (the octen#embedding loop; TextEncoder is
+         *  not a whitelisted global in closed-term fns). */
+        estimate: ({ data }) => {
+            let bytes = 0;
+            for (const ch of JSON.stringify(data.input.body)) {
+                const cp = ch.codePointAt(0) ?? 0;
+                bytes += cp <= 0x7f
+                    ? 1
+                    : cp <= 0x7ff
+                    ? 2
+                    : cp <= 0xffff
+                    ? 3
+                    : 4;
+            }
+            return { counts: { "TOKEN": bytes } };
+        },
         /** The vendor's `usage.input_tokens` (absent ⇒ 0, never a guessed
          *  charge). */
         evidence: ({ data, utils }) => ({

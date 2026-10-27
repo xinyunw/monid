@@ -572,6 +572,16 @@ Deno.test("topaz: the input schema rejects before the wire", async () => {
             "0x7f.1",
             "0177.0.0.1",
             "user@127.0.0.1",
+            // spellings a URL parser normalizes into a blocked host: a
+            // trailing dot, a backslash, percent-encoding, full-width digits
+            "127.0.0.1.",
+            "10.0.0.1.:443",
+            "2130706433.",
+            "localhost.",
+            "127.0.0.1\\",
+            "%31%32%37.0.0.1",
+            "\uFF11\uFF12\uFF17.0.0.1",
+            "evil.test\\@127.0.0.1",
         ]
     ) {
         await rejects(
@@ -587,6 +597,8 @@ Deno.test("topaz: the input schema rejects before the wire", async () => {
             "10.example.test",
             "cdn.example.test:8443",
             "127.0.0.1@cdn.example.test",
+            "8.8.8.8.",
+            "xn--bcher-kva.example",
         ]
     ) {
         await accepts(

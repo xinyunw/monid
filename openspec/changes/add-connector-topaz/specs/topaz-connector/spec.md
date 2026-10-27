@@ -27,7 +27,8 @@ extension, case-insensitively, with an optional query or fragment.
 #### Scenario: Private and internal hosts are rejected
 - **WHEN** `video_url` names `localhost`, a `*.internal` host, an IPv6
   literal, or a loopback, 0/8, private-range or link-local IPv4 address, in
-  any numeric spelling
+  any numeric spelling, with a trailing dot, or through `\`, `%` or
+  non-ASCII characters in the host
 - **THEN** the run is rejected INVALID_INPUT
 
 #### Scenario: Extension-less and plain-http URLs are rejected

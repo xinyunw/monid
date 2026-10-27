@@ -20,8 +20,9 @@ const VIDEO_EXTENSIONS =
 const anyCase = (source: string) =>
     source.replace(/[a-z]/g, (c) => `[${c}${c.toUpperCase()}]`);
 
-/** Where a host ends: an optional port, then the path. */
-const HOST_END = "(?::\\d*)?/";
+/** Where a host ends: an optional trailing dot (a URL parser drops it, so
+ *  `127.0.0.1.` is 127.0.0.1), an optional port, then the path. */
+const HOST_END = "\\.?(?::\\d*)?/";
 /** A canonical dotted-quad octet (0-255, no leading zero). */
 const OCTET = "(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)";
 /** One numeric host part as a URL parser reads it: decimal, octal, hex. */
@@ -34,6 +35,10 @@ const NUMERIC_PART = "(?:0[xX][0-9a-fA-F]*|\\d+)";
  * 0/8, private ranges and link-local. A URL parser also reads numeric
  * spellings like `2130706433` or `0x7f.1` as 127.0.0.1, so any numeric
  * host that is not a canonical dotted quad is refused too.
+ *
+ * The host itself may not hold `\` (a parser reads it as `/`), `%` (it
+ * percent-decodes `%31%32%37` to `127`), or non-ASCII (IDNA maps
+ * full-width digits to ASCII) — internationalized names pass as punycode.
  */
 const BLOCKED_HOSTS = [
     "\\[",
@@ -51,9 +56,11 @@ const BLOCKED_HOSTS = [
 
 export const zVideoUrl = z.string().max(2000).regex(
     new RegExp(
-        "^[hH][tT][tT][pP][sS]://(?:[^\\s/?#@]*@)?" +
+        "^[hH][tT][tT][pP][sS]://(?:[^\\s/?#@\\\\]*@)?" +
             `(?!${BLOCKED_HOSTS.join("|")})` +
-            `[^\\s/?#@]+/[^\\s?#]*\\.(${anyCase(VIDEO_EXTENSIONS)})` +
+            // the host: printable ASCII minus # % / ? @ and backslash
+            '[!"$&-.0->A-\\[\\]-~]+' +
+            `/[^\\s?#]*\\.(${anyCase(VIDEO_EXTENSIONS)})` +
             "(?:[?#][^\\s]*)?$",
     ),
     "must be a public https:// URL whose path ends with a video extension",

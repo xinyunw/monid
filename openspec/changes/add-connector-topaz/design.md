@@ -65,8 +65,10 @@ https://developer.topazlabs.com/video-models, checked 2026-10-22.
 ## D5 — Timeouts
 
 `runMs` 30 min (v1 parity). Diffusion models (Astra, Starlight) can queue
-upstream for most of it; a run that times out may still complete and bill
-upstream — the same invisible-charge class as kling 7.3, stated in notes.
+upstream for most of it. A run that times out is zero-billed to the CALLER
+(TIMED_OUT never settles), which is what the v1 notes' "at no charge" says.
+The upstream job may still complete and draw credits from the HOST's Topaz
+account — a cost the engine cannot see, the same class as kling 7.3.
 
 ## D6 — The source-URL host rule rides the `pattern`
 

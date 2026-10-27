@@ -26,7 +26,8 @@ import { directTransport, Engine } from "@monid/connector-engine";
  *
  * The live test BILLS real agent steps (max_steps 1, about two steps), so it
  * runs only when TINYFISH_LIVE_MUTATE=1 is set beside the key — a key alone
- * never spends.
+ * never spends. It also needs TINYFISH_LIVE_BETA=1: `max_steps` is a vendor
+ * beta, and a key without it answers 403.
  */
 
 const FIXTURES = fromFileUrl(new URL("../../fixtures/", import.meta.url));
@@ -248,9 +249,10 @@ Deno.test("tinyfish#automation/run schema gate: a bare domain, a step cap over 5
 
 Deno.test({
     name:
-        "tinyfish#automation/run live (gated on TINYFISH_API_KEY + TINYFISH_LIVE_MUTATE=1)",
+        "tinyfish#automation/run live (gated on TINYFISH_API_KEY + TINYFISH_LIVE_MUTATE=1 + TINYFISH_LIVE_BETA=1)",
     ignore: liveSkip("tinyfish") ||
-        Deno.env.get("TINYFISH_LIVE_MUTATE") !== "1",
+        Deno.env.get("TINYFISH_LIVE_MUTATE") !== "1" ||
+        Deno.env.get("TINYFISH_LIVE_BETA") !== "1",
     fn: async () => {
         const result = await runEndpoint({
             unit: await testSealedUnit(AGENT),
